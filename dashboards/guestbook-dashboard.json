@@ -1,0 +1,398 @@
+{
+  "title": "Guestbook Application Monitoring",
+  "uid": "guestbook-monitoring",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "15s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 100,
+      "title": "Frontend Service (Apache / PHP Web Tier)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 1,
+      "title": "Frontend Overview (Up Pods, Total Requests, Open Busy Workers)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(apache_up{service=\"frontend\"})",
+          "legendFormat": "Up Pods",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(apache_accesses_total{service=\"frontend\"})",
+          "legendFormat": "Total HTTP Requests",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(apache_workers{service=\"frontend\", state=\"busy\"})",
+          "legendFormat": "Active Busy Workers",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Frontend Pod Count History (Desired vs Available vs Scraped Up)",
+      "type": "timeseries",
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "kube_deployment_spec_replicas{namespace=\"default\", deployment=\"frontend\"}",
+          "legendFormat": "Desired Replicas",
+          "refId": "A"
+        },
+        {
+          "expr": "kube_deployment_status_replicas_available{namespace=\"default\", deployment=\"frontend\"}",
+          "legendFormat": "Available Replicas",
+          "refId": "B"
+        },
+        {
+          "expr": "count(apache_up{service=\"frontend\"} == 1)",
+          "legendFormat": "Scraped Up Pods",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Frontend Traffic Volume / HTTP Request Rate (RPS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(apache_accesses_total{service=\"frontend\"}[1m]))",
+          "legendFormat": "Total RPS (All Pods)",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(apache_accesses_total{service=\"frontend\"}[1m])",
+          "legendFormat": "RPS ({{pod}})",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Frontend Error Rate, Container Restarts & Avg Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(apache_scrape_failures_total{service=\"frontend\"}[1m])",
+          "legendFormat": "Scrape Errors/s ({{pod}})",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pod) (rate(container_network_receive_errors_total{namespace=\"default\", pod=~\"frontend.*\"}[1m]) + rate(container_network_transmit_errors_total{namespace=\"default\", pod=~\"frontend.*\"}[1m]))",
+          "legendFormat": "Network TX/RX Errors/s ({{pod}})",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace=\"default\", pod=~\"frontend.*\"}[5m]))",
+          "legendFormat": "Container Restarts 5m ({{pod}})",
+          "refId": "C"
+        },
+        {
+          "expr": "rate(apache_duration_ms_total{service=\"frontend\"}[1m]) / clamp_min(rate(apache_accesses_total{service=\"frontend\"}[1m]), 0.001)",
+          "legendFormat": "Avg Request Latency ms ({{pod}})",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Frontend Open Connections & Apache Worker States",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (state) (apache_workers{service=\"frontend\"})",
+          "legendFormat": "Workers ({{state}})",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (state) (apache_scoreboard{service=\"frontend\", state!=\"open_slot\"})",
+          "legendFormat": "Connection State ({{state}})",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Frontend Pod CPU Usage (Cores)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"default\", pod=~\"frontend.*\", container!=\"\"}[1m]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Frontend Pod Memory Usage (MiB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"default\", pod=~\"frontend.*\", container!=\"\"}) / 1024 / 1024",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 200,
+      "title": "Redis Leader Service (Primary / Write Database)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 }
+    },
+    {
+      "id": 8,
+      "title": "Redis Leader Overview (Status, Open Conns, Replicas, Keys)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "redis_up{service=\"redis-leader\"}",
+          "legendFormat": "Leader Up",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_connected_clients{service=\"redis-leader\"}",
+          "legendFormat": "Open Client Conns",
+          "refId": "B"
+        },
+        {
+          "expr": "redis_connected_slaves{service=\"redis-leader\"}",
+          "legendFormat": "Connected Replicas",
+          "refId": "C"
+        },
+        {
+          "expr": "redis_db_keys{service=\"redis-leader\", db=\"db0\"}",
+          "legendFormat": "Total Keys (db0)",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Redis Leader Pod Count History & Open Client Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "kube_deployment_status_replicas_available{namespace=\"default\", deployment=\"redis-leader\"}",
+          "legendFormat": "Available Leader Pods",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_connected_clients{service=\"redis-leader\"}",
+          "legendFormat": "Open Client Connections",
+          "refId": "B"
+        },
+        {
+          "expr": "redis_blocked_clients{service=\"redis-leader\"}",
+          "legendFormat": "Blocked Clients",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Redis Leader Command Throughput (Ops/s) & Rejected Conns",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(redis_commands_processed_total{service=\"redis-leader\"}[1m])",
+          "legendFormat": "Commands/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(redis_connections_received_total{service=\"redis-leader\"}[1m])",
+          "legendFormat": "New Conns/sec",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(redis_rejected_connections_total{service=\"redis-leader\"}[1m])",
+          "legendFormat": "Rejected Conns/sec",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Redis Leader Pod CPU Usage (Cores)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"default\", pod=~\"redis-leader.*\", container!=\"\"}[1m]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Redis Leader Memory Usage (Container vs Redis Engine MiB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"default\", pod=~\"redis-leader.*\", container!=\"\"}) / 1024 / 1024",
+          "legendFormat": "Pod Memory MiB ({{pod}})",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_memory_used_bytes{service=\"redis-leader\"} / 1024 / 1024",
+          "legendFormat": "Redis Dataset Memory MiB",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 300,
+      "title": "Redis Replica Service (Read Replicas & Replication)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 }
+    },
+    {
+      "id": 13,
+      "title": "Redis Replica Overview (Status, Master Sync Link, Conns, Keys)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 37 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "redis_up{service=\"redis-replica\"}",
+          "legendFormat": "Replica Up",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_master_link_up{service=\"redis-replica\"}",
+          "legendFormat": "Master Sync Link (1=Up)",
+          "refId": "B"
+        },
+        {
+          "expr": "redis_connected_clients{service=\"redis-replica\"}",
+          "legendFormat": "Open Client Conns",
+          "refId": "C"
+        },
+        {
+          "expr": "redis_db_keys{service=\"redis-replica\", db=\"db0\"}",
+          "legendFormat": "Replicated Keys (db0)",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Redis Replica Pod Count History & Open Client Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 37 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "kube_deployment_status_replicas_available{namespace=\"default\", deployment=\"redis-replica\"}",
+          "legendFormat": "Available Replica Pods",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_connected_clients{service=\"redis-replica\"}",
+          "legendFormat": "Open Client Connections",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Redis Replica Read Throughput, Cache Hits/Misses & Errors",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 42 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(redis_commands_processed_total{service=\"redis-replica\"}[1m])",
+          "legendFormat": "Commands/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(redis_keyspace_hits_total{service=\"redis-replica\"}[1m])",
+          "legendFormat": "Keyspace Hits/sec",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(redis_keyspace_misses_total{service=\"redis-replica\"}[1m])",
+          "legendFormat": "Keyspace Misses/sec",
+          "refId": "C"
+        },
+        {
+          "expr": "rate(redis_rejected_connections_total{service=\"redis-replica\"}[1m])",
+          "legendFormat": "Rejected Conns/sec",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Redis Replica Pod CPU Usage (Cores)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 42 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"default\", pod=~\"redis-replica.*\", container!=\"\"}[1m]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Redis Replica Memory Usage (Container vs Redis Engine MiB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 42 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"default\", pod=~\"redis-replica.*\", container!=\"\"}) / 1024 / 1024",
+          "legendFormat": "Pod Memory MiB ({{pod}})",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_memory_used_bytes{service=\"redis-replica\"} / 1024 / 1024",
+          "legendFormat": "Redis Dataset Memory MiB",
+          "refId": "B"
+        }
+      ]
+    }
+  ]
+}
